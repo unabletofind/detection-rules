@@ -18,4 +18,12 @@
 
 DeviceProcessEvents
 | where FileName =~ "powershell.exe"
-...
+| where ProcessCommandLine has_any ("-enc", "-EncodedCommand", "-e ")
+| where ProcessCommandLine matches regex @"[A-Za-z0-9+/]{50,}={0,2}"
+| project Timestamp,
+          DeviceName,
+          AccountName,
+          InitiatingProcessFileName,
+          InitiatingProcessCommandLine,
+          ProcessCommandLine
+| order by Timestamp desc
