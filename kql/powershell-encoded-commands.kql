@@ -1,7 +1,21 @@
+// =============================================================
+// Rule: Suspicious PowerShell Encoded Command Execution
+// Author: Swetha Devi (@unabletofind)
+// Date:   April 2026
+// Severity: High
+// MITRE:  T1059.001 (PowerShell), T1027 (Obfuscated Files)
+// Tested on: Microsoft Defender XDR Advanced Hunting
+// =============================================================
+// Description:
+// Catches base64-encoded PowerShell payloads — a classic loader
+// pattern used by Emotet, Qakbot, and modern AiTM kits.
+//
+// Tuning:
+// - Adjust the {50,} length threshold based on your false positive rate
+// - Consider adding |where TimeGenerated > ago(24h) for performance
+// - Whitelist known admin scripts via process tree filters
+// =============================================================
+
 DeviceProcessEvents
 | where FileName =~ "powershell.exe"
-| where ProcessCommandLine has_any ("-enc", "-EncodedCommand", "-e ")
-| where ProcessCommandLine matches regex @"[A-Za-z0-9+/]{50,}={0,2}"
-| project Timestamp, DeviceName, AccountName,
-          InitiatingProcessFileName, ProcessCommandLine
-| order by Timestamp desc
+...
