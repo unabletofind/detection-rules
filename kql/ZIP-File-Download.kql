@@ -1,0 +1,40 @@
+// =============================================================
+// Rule: ZIP File Downloaded via Browser or Email Client
+// Author: Swetha Devi (@unabletofind)
+// Date:   May 2026
+// Severity: Medium
+// MITRE:  T1566.001 (Spearphishing Attachment),
+//         T1105 (Ingress Tool Transfer)
+// Tested on: Microsoft Defender XDR Advanced Hunting
+// =============================================================
+// Description:
+// Detects .zip file creation in user-accessible folders initiated
+// by a browser or email client — common delivery mechanism for
+// phishing payloads including password-protected archives.
+//
+// Tuning:
+// - Extend InitiatingProcessFileName list for other browsers
+// - Add SHA256 watchlist join to catch known malicious hashes
+// - Narrow FolderPath filter based on org download policy
+// =============================================================
+DeviceFileEvents
+| where Timestamp > ago(24h)
+| where ActionType == "FileCreated"
+| where FileName endswith ".zip"
+| where InitiatingProcessFileName in~ (
+    "chrome.exe", "msedge.exe", "firefox.exe",
+    "outlook.exe", "iexplore.exe", "brave.exe"
+    )
+| where FolderPath has_any ("Downloads", "Temp", "AppData", "Desktop")
+| project
+    Timestamp,
+    DeviceName,
+    AccountName,
+    FileName,
+    FolderPath,
+    FileSize,
+    InitiatingProcessFileName,
+    InitiatingProcessCommandLine,
+    SHA256
+| extend VTLink = strcat("https://www.virustotal.com/gui/file/", SHA256)
+| order by Timestamp desc
