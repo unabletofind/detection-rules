@@ -1,0 +1,41 @@
+// =============================================================
+// Rule: Post-Compromise Enumeration Burst
+// Author: Swetha Devi (@unabletofind)
+// Date:   May 2026
+// Severity: High
+// MITRE:  T1082 (System Info), T1016 (Network Discovery),
+//         T1083 (File Discovery), T1033 (User Discovery),
+//         T1057 (Process Discovery)
+// Tested on: Microsoft Defender XDR Advanced Hunting
+// =============================================================
+// Description:
+// Detects 2+ enumeration commands executing within 10 seconds
+// on the same device — strong indicator of post-exploitation
+// scripted activity. Logic derived from a real phishing
+// investigation (LetsDefend Alert ID: 257).
+//
+// Tuning:
+// - Raise CommandCount threshold to 3 to reduce false positives
+// - Adjust bin(Timestamp, 10s) window based on environment noise
+// - Add process tree filter to exclude known admin tooling
+// =============================================================
+let EnumCommands = dynamic(["net view", "net user", "net group", "ipconfig",
+    "arp", "nslookup", "systeminfo", "hostname", "whoami", "nltest",
+    "netstat", "tasklist", "dir", "wmic"]);
+DeviceProcessEvents
+| where Timestamp > ago(24h)
+| where FileName in~ ("cmd.exe", "powershell.exe")
+| where InitiatingProcessCommandLine has_any (EnumCommands)
+    or ProcessCommandLine has_any (EnumCommands)
+| summarize
+    CommandCount = dcount(ProcessCommandLine),
+    CommandsRun = make_set(ProcessCommandLine),
+    FirstSeen = min(Timestamp),
+    LastSeen = max(Timestamp)
+    by DeviceName, AccountName, bin(Timestamp, 10s)
+| where CommandCount >= 2
+| extend TimeDiffSeconds = datetime_diff('second', LastSeen, FirstSeen)
+| where TimeDiffSeconds <= 10
+| project Timestamp, DeviceName, AccountName,
+    CommandCount, CommandsRun, TimeDiffSeconds
+| order by Timestamp desc
