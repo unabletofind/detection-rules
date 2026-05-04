@@ -1,0 +1,42 @@
+// =============================================================
+// Rule: Inbound Email from Threat Intel Watchlist IP
+// Author: Swetha Devi (@unabletofind)
+// Date:   May 2026
+// Severity: High
+// MITRE:  T1566.001 (Phishing),
+//         T1078 (Valid Accounts)
+// Tested on: Microsoft Sentinel
+// =============================================================
+// Description:
+// Detects inbound emails where the sender IP matches an entry
+// in the Sentinel threat intelligence watchlist — high confidence
+// phishing or BEC indicator requiring immediate triage.
+//
+// Tuning:
+// - Rename 'ThreatIntelFeed' to match your Sentinel watchlist name
+// - Add DeliveryAction filter to focus on delivered-only emails
+// - Join with DeviceNetworkEvents to correlate recipient activity
+// =============================================================
+let ThreatIntelIPs = _GetWatchlist('ThreatIntelFeed')
+| project SenderIP = SearchKey;
+EmailEvents
+| where Timestamp > ago(24h)
+| where EmailDirection == "Inbound"
+| extend SenderIP = tostring(parse_json(AuthenticationDetails).SenderIP)
+| join kind=inner ThreatIntelIPs on SenderIP
+| project
+    Timestamp,
+    SenderAddress,
+    SenderIP,
+    RecipientEmailAddress,
+    Subject,
+    DeliveryAction,
+    DeliveryLocation,
+    UrlCount,
+    AttachmentCount,
+    ThreatTypes,
+    DetectionMethods
+| extend
+    Urgency = "HIGH — Sender IP matches threat intel feed",
+    RecommendedAction = "Quarantine email, investigate recipient device"
+| order by Timestamp desc
